@@ -33,8 +33,11 @@ export default function CadastroLocalizacao() {
       const response = await axios.get(`${API_URL}/Localizacoes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log("Localizações carregadas: ", response.data);
       setLocalizacoes(response.data);
     } catch (error) {
+      console.error("Erro real na busca de localizações:", error);
       Alert.alert('Aviso', 'Não foi possível carregar as localizações existentes (ou a lista está vazia).');
     } finally {
       setLoadingDados(false);
@@ -51,12 +54,14 @@ export default function CadastroLocalizacao() {
     try {
       const token = await SecureStore.getItemAsync('jwtToken');
       
+      // POST com ID 0 e idPai forçado como número
       await axios.post(`${API_URL}/Localizacoes`, {
-        code: codigo.trim(),
+        id: 0,
+        codigo: codigo.trim(),
         descricao: descricao.trim(),
-        code_Pai: codePai === '' ? null : codePai, // Se vazio, é o nível raiz
+        idPai: codePai === '' ? null : Number(codePai), 
         deposito: isDeposito ? 1 : 0,
-        nivel: codePai === '' ? 1 : 2, // Lógica simplificada para o TCC
+        nivel: codePai === '' ? 1 : 2,
         ativo: ativo ? 1 : 0
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -64,9 +69,11 @@ export default function CadastroLocalizacao() {
 
       Alert.alert('Sucesso', 'Localização cadastrada com sucesso!');
       router.back();
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao cadastrar localização.');
-      console.log(error);
+    } catch (error: any) {
+      // Captura de erro detalhada da API
+      const detalhesErro = error.response?.data?.errors || error.response?.data || error.message;
+      console.log("DETALHES DO ERRO 400: ", detalhesErro);
+      Alert.alert('Erro na API', JSON.stringify(detalhesErro));
     } finally {
       setLoading(false);
     }
@@ -96,7 +103,8 @@ export default function CadastroLocalizacao() {
         <Picker selectedValue={codePai} onValueChange={setCodePai}>
           <Picker.Item label="Nenhum (Nível Principal)" value="" />
           {localizacoes.map((loc) => (
-            <Picker.Item key={loc.code} label={`${loc.code} - ${loc.descricao}`} value={loc.code} />
+            /* CORRIGIDO: value agora é o loc.id */
+            <Picker.Item key={loc.id} label={`${loc.codigo} - ${loc.descricao}`} value={loc.id} />
           ))}
         </Picker>
       </View>
