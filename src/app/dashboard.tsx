@@ -14,12 +14,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Alerta = {
   id: number | string;
-  idEquipamento: number | string;
+  equipamentoCodigo: string;
+  equipamentoDescricao: string;
   descricao: string;
   statusAlerta: string;
 };
 
 const API_URL = 'https://qlvmzrjr-7008.brs.devtunnels.ms/api/Alertas';
+
+function obterCorStatus(status: string) {
+  switch (status.toUpperCase()) {
+    case 'CRÍTICO':
+      return '#991b1b';
+    case 'ALERTA':
+      return '#f97316';
+    case 'ATENÇÃO':
+      return '#d4a017';
+    default:
+      return '#64748b';
+  }
+}
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -80,6 +94,10 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
+      <Pressable onPress={() => router.push('/menu')} style={styles.registersButton}>
+        <Text style={styles.registersButtonText}>⚙️ Cadastros e Regras Preditivas</Text>
+      </Pressable>
+
       {loading ? (
         <ActivityIndicator size="large" color="#208AEF" style={styles.loading} />
       ) : (
@@ -87,10 +105,22 @@ export default function DashboardScreen() {
           data={alertas}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.equipment}>Equipamento ID: {item.idEquipamento}</Text>
+            <View style={[styles.card, { borderLeftColor: obterCorStatus(item.statusAlerta) }]}>
+              <Text style={styles.equipment}>
+                {item.equipamentoCodigo} - {item.equipamentoDescricao}
+              </Text>
               <Text style={styles.description}>{item.descricao}</Text>
-              <Text style={styles.status}>Status: {item.statusAlerta}</Text>
+              <View style={styles.statusRow}>
+                <View
+                  style={[
+                    styles.statusIndicator,
+                    { backgroundColor: obterCorStatus(item.statusAlerta) },
+                  ]}
+                />
+                <Text style={[styles.status, { color: obterCorStatus(item.statusAlerta) }]}>
+                  {item.statusAlerta}
+                </Text>
+              </View>
             </View>
           )}
           ListEmptyComponent={<Text style={styles.empty}>Nenhum alerta pendente no momento.</Text>}
@@ -106,10 +136,27 @@ const styles = StyleSheet.create({
   title: { color: '#333', fontSize: 24, fontWeight: 'bold' },
   logoutButton: { backgroundColor: '#c0392b', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 9 },
   logoutText: { color: '#fff', fontWeight: 'bold' },
+  registersButton: { backgroundColor: '#208AEF', borderRadius: 8, marginBottom: 16, padding: 14 },
+  registersButtonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
   loading: { marginTop: 50 },
-  card: { backgroundColor: '#fff', borderColor: '#ddd', borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 15 },
-  equipment: { color: '#d9534f', fontSize: 16, fontWeight: 'bold' },
-  description: { color: '#333', fontSize: 14, marginVertical: 5 },
-  status: { color: '#666', fontSize: 12, fontStyle: 'italic' },
+  card: {
+    backgroundColor: '#fff',
+    borderColor: '#e2e8f0',
+    borderLeftWidth: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    elevation: 2,
+    marginBottom: 12,
+    padding: 16,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  equipment: { color: '#1e293b', fontSize: 16, fontWeight: 'bold' },
+  description: { color: '#475569', fontSize: 14, marginVertical: 8 },
+  statusRow: { alignItems: 'center', flexDirection: 'row' },
+  statusIndicator: { borderRadius: 6, height: 10, marginRight: 8, width: 10 },
+  status: { fontSize: 12, fontStyle: 'italic', fontWeight: 'bold' },
   empty: { color: '#888', marginTop: 40, textAlign: 'center' },
 });

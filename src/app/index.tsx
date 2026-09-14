@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
+	ImageBackground,
 	Pressable,
 	StyleSheet,
 	Text,
@@ -24,7 +25,7 @@ type LoginResponse = {
 export default function LoginScreen() {
 	const router = useRouter();
 	const { erro: erroParametro } = useLocalSearchParams<{ erro?: string }>();
-	const [email, setEmail] = useState('');
+	const [login, setLogin] = useState('');
 	const [senha, setSenha] = useState('');
 	const [mostrarSenha, setMostrarSenha] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -41,7 +42,7 @@ export default function LoginScreen() {
 					SecureStore.getItemAsync(EMAIL_KEY),
 				]);
 
-				if (emailSalvo) setEmail(emailSalvo);
+				if (emailSalvo) setLogin(emailSalvo);
 
 				if (token && erroParametro !== 'sessao') {
 					router.replace('/dashboard' as never);
@@ -55,8 +56,8 @@ export default function LoginScreen() {
 	}, [erroParametro, router]);
 
 	const entrar = async () => {
-		if (!email.trim() || !senha) {
-			setErro('Informe o email e a senha.');
+		if (!login.trim() || !senha) {
+			setErro('Informe o usuário ou email e a senha.');
 			return;
 		}
 
@@ -65,7 +66,7 @@ export default function LoginScreen() {
 
 		try {
 			const response = await axios.post<LoginResponse>(API_URL, {
-				email: email.trim(),
+				email: login.trim(),
 				senha,
 			});
 
@@ -77,7 +78,7 @@ export default function LoginScreen() {
 			}
 
 			await SecureStore.setItemAsync(TOKEN_KEY, token);
-			await SecureStore.setItemAsync(EMAIL_KEY, email.trim());
+			await SecureStore.setItemAsync(EMAIL_KEY, login.trim());
 			router.replace('/dashboard' as never);
 		} catch (error) {
 			if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -91,67 +92,90 @@ export default function LoginScreen() {
 	};
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<View style={styles.form}>
-				<Text style={styles.title}>SIMAPRIND</Text>
-				<Text style={styles.subtitle}>Acesse o monitoramento industrial</Text>
+		<ImageBackground
+			resizeMode="cover"
+			source={{ uri: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158' }}
+			style={styles.background}>
+			<View style={styles.overlay} />
+			<SafeAreaView style={styles.container}>
+				<View style={styles.form}>
+					<Text style={styles.title}>SIMAPRIND</Text>
+					<Text style={styles.subtitle}>Acesse o monitoramento industrial</Text>
 
-				<TextInput
-					style={styles.input}
-					placeholder="Email"
-					autoCapitalize="none"
-					autoCorrect={false}
-					keyboardType="email-address"
-					value={email}
-					onChangeText={setEmail}
-				/>
-				<View style={styles.passwordContainer}>
+					<Text style={styles.label}>Usuário ou E-mail</Text>
 					<TextInput
-						style={styles.passwordInput}
-						placeholder="Senha"
-						secureTextEntry={!mostrarSenha}
-						value={senha}
-						onChangeText={setSenha}
+						style={styles.input}
+						placeholder="Digite seu usuário ou e-mail"
+						autoCapitalize="none"
+						autoCorrect={false}
+						value={login}
+						onChangeText={setLogin}
 					/>
+
+					<Text style={styles.label}>Senha</Text>
+					<View style={styles.passwordContainer}>
+						<TextInput
+							style={styles.passwordInput}
+							placeholder="Digite sua senha"
+							secureTextEntry={!mostrarSenha}
+							value={senha}
+							onChangeText={setSenha}
+						/>
+						<Pressable
+							accessibilityLabel={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+							onPress={() => setMostrarSenha((atual) => !atual)}
+							style={styles.togglePasswordButton}>
+							<Text style={styles.togglePasswordText}>
+								{mostrarSenha ? 'Ocultar' : 'Mostrar'}
+							</Text>
+						</Pressable>
+					</View>
+
+					{!!erro && <Text style={styles.error}>{erro}</Text>}
+
 					<Pressable
-						accessibilityLabel={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-						onPress={() => setMostrarSenha((atual) => !atual)}
-						style={styles.togglePasswordButton}>
-						<Text style={styles.togglePasswordText}>
-							{mostrarSenha ? 'Ocultar' : 'Mostrar'}
-						</Text>
+						style={[styles.button, (loading || verificandoSessao) && styles.buttonDisabled]}
+						onPress={entrar}
+						disabled={loading || verificandoSessao}>
+						{loading || verificandoSessao ? (
+							<ActivityIndicator color="#fff" />
+						) : (
+							<Text style={styles.buttonText}>Entrar</Text>
+						)}
+					</Pressable>
+
+					<Pressable onPress={() => router.push('/register' as never)} style={styles.registerButton}>
+						<Text style={styles.registerText}>Criar uma conta</Text>
 					</Pressable>
 				</View>
-
-				{!!erro && <Text style={styles.error}>{erro}</Text>}
-
-				<Pressable
-					style={[styles.button, (loading || verificandoSessao) && styles.buttonDisabled]}
-					onPress={entrar}
-					disabled={loading || verificandoSessao}>
-					{loading || verificandoSessao ? (
-						<ActivityIndicator color="#fff" />
-					) : (
-						<Text style={styles.buttonText}>Entrar</Text>
-					)}
-				</Pressable>
-
-				<Pressable onPress={() => router.push('/register' as never)} style={styles.registerButton}>
-					<Text style={styles.registerText}>Criar uma conta</Text>
-				</Pressable>
-			</View>
-		</SafeAreaView>
+			</SafeAreaView>
+		</ImageBackground>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, backgroundColor: '#f5f5f5', justifyContent: 'center', padding: 24 },
-	form: { width: '100%', maxWidth: 420, alignSelf: 'center' },
-	title: { color: '#333', fontSize: 30, fontWeight: 'bold', textAlign: 'center' },
-	subtitle: { color: '#666', marginBottom: 28, marginTop: 8, textAlign: 'center' },
+	background: { flex: 1 },
+	overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.58)' },
+	container: { flex: 1, justifyContent: 'center', padding: 24 },
+	form: {
+		alignSelf: 'center',
+		backgroundColor: 'rgba(255, 255, 255, 0.92)',
+		borderRadius: 18,
+		maxWidth: 420,
+		padding: 28,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 8 },
+		shadowOpacity: 0.25,
+		shadowRadius: 16,
+		width: '100%',
+		elevation: 8,
+	},
+	title: { color: '#1f2937', fontSize: 30, fontWeight: 'bold', textAlign: 'center' },
+	subtitle: { color: '#4b5563', marginBottom: 24, marginTop: 8, textAlign: 'center' },
+	label: { color: '#374151', fontSize: 14, fontWeight: 'bold', marginBottom: 6 },
 	input: {
 		backgroundColor: '#fff',
-		borderColor: '#ddd',
+		borderColor: '#d1d5db',
 		borderRadius: 8,
 		borderWidth: 1,
 		fontSize: 16,
@@ -161,7 +185,7 @@ const styles = StyleSheet.create({
 	passwordContainer: {
 		alignItems: 'center',
 		backgroundColor: '#fff',
-		borderColor: '#ddd',
+		borderColor: '#d1d5db',
 		borderRadius: 8,
 		borderWidth: 1,
 		flexDirection: 'row',
