@@ -33,15 +33,17 @@ export default function CadastroEquipamento() {
       const token = await SecureStore.getItemAsync('jwtToken');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Busca famílias e localizações em paralelo para preencher os selects
+// Dentro do carregarDadosBase no CadastroEquipamento.tsx
       const [resFamilias, resLocalizacoes] = await Promise.all([
-        axios.get(`${API_URL}/FamiliaEquipamentos`, { headers }),
+        axios.get(`${API_URL}/Familias`, { headers }), // <-- Ajustado para /Familias
         axios.get(`${API_URL}/Localizacoes`, { headers })
       ]);
 
       setFamilias(resFamilias.data);
       setLocalizacoes(resLocalizacoes.data);
-    } catch (error) {
+    } catch (error: any) {
+      // ESTA LINHA VAI DEDURAR QUAL API QUEBROU E O PORQUÊ
+      console.error("ERRO AO CARREGAR DADOS BASE: ", error.message, error.response?.status, error.response?.data);
       Alert.alert('Erro', 'Não foi possível carregar as Famílias e Localizações.');
     } finally {
       setLoadingDados(false);
@@ -59,10 +61,12 @@ export default function CadastroEquipamento() {
       const token = await SecureStore.getItemAsync('jwtToken');
       
       await axios.post(`${API_URL}/Equipamentos`, {
+        id: 0,
         codigo: codigo.trim(),
         descricao: descricao.trim(),
-        familia_Code: familiaCode,
-        localizacao_Pkey: parseInt(localizacaoPkey),
+        // Substitua familia_Code e localizacao_Pkey pelos nomes corretos da API:
+        idFamilia: Number(familiaCode), 
+        idLocalizacao: Number(localizacaoPkey),
         ativo: ativo ? 1 : 0
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -70,9 +74,11 @@ export default function CadastroEquipamento() {
 
       Alert.alert('Sucesso', 'Equipamento cadastrado com sucesso!');
       router.back(); // Volta para a tela anterior
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao cadastrar o equipamento.');
-      console.log(error);
+    } catch (error: any) {
+      // Captura detalhada de erro do backend igual fizemos na Localização
+      const detalhesErro = error.response?.data?.errors || error.response?.data || error.message;
+      console.log("DETALHES DO ERRO 400 (Equipamentos): ", detalhesErro);
+      Alert.alert('Erro na API', JSON.stringify(detalhesErro));
     } finally {
       setLoading(false);
     }
@@ -97,12 +103,13 @@ export default function CadastroEquipamento() {
       <Text style={styles.label}>Descrição *</Text>
       <TextInput style={styles.input} placeholder="Ex: Motor Elétrico Principal" value={descricao} onChangeText={setDescricao} />
 
-      <Text style={styles.label}>Família do Equipamento *</Text>
+<Text style={styles.label}>Família do Equipamento *</Text>
       <View style={styles.pickerContainer}>
         <Picker selectedValue={familiaCode} onValueChange={(itemValue) => setFamiliaCode(itemValue)}>
           <Picker.Item label="Selecione uma família..." value="" />
           {familias.map((fam) => (
-            <Picker.Item key={fam.code} label={fam.descricao} value={fam.code} />
+            /* CORREÇÃO AQUI: o value agora é fam.id */
+            <Picker.Item key={fam.id} label={`${fam.codigo} - ${fam.descricao}`} value={fam.id} />
           ))}
         </Picker>
       </View>
@@ -112,7 +119,8 @@ export default function CadastroEquipamento() {
         <Picker selectedValue={localizacaoPkey} onValueChange={(itemValue) => setLocalizacaoPkey(itemValue)}>
           <Picker.Item label="Selecione um local..." value="" />
           {localizacoes.map((loc) => (
-            <Picker.Item key={loc.pkey} label={loc.descricao} value={loc.pkey.toString()} />
+            /* CORRIGIDO: loc.pkey virou loc.id */
+            <Picker.Item key={loc.id} label={`${loc.codigo} - ${loc.descricao}`} value={loc.id} />
           ))}
         </Picker>
       </View>
