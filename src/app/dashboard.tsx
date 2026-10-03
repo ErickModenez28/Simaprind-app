@@ -16,13 +16,24 @@ type Alerta = {
 
 const API_URL = 'https://qlvmzrjr-7008.brs.devtunnels.ms/api/Alertas';
 
-function obterCorStatus(status: string) {
-  switch (status?.toUpperCase()) {
-    case 'PENDENTE': return '#eab308'; // Amarelo
-    case 'ANALISANDO': return '#3b82f6'; // Azul
-    case 'CRÍTICO': return '#991b1b'; // Vermelho
-    default: return '#64748b'; // Cinza
-  }
+// 1. Função que lê a DESCRIÇÃO para definir a cor do texto (Amarelo, Laranja, Vermelho)
+function obterCorGravidade(descricao: string) {
+  const descLimpa = descricao?.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "") || "";
+  
+  if (descLimpa.includes('CRITICO')) return '#dc2626'; // Vermelho
+  if (descLimpa.includes('ALERTA')) return '#f97316';  // Laranja
+  if (descLimpa.includes('ATENCAO')) return '#eab308'; // Amarelo
+  
+  return '#333333'; 
+}
+
+// 2. Função que lê o STATUS DA EQUIPE para definir a cor da barra lateral e do status de trabalho
+function obterCorWorkflow(status: string) {
+  const statusLimpo = status?.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "") || "";
+  
+  if (statusLimpo === 'ANALISANDO') return '#3b82f6'; // Azul
+  if (statusLimpo === 'CONCLUIDO') return '#16a34a';  // Verde
+  return '#64748b'; // Cinza (Pendente)
 }
 
 export default function DashboardScreen() {
@@ -30,7 +41,6 @@ export default function DashboardScreen() {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Estados para controlar o Acordeão e a Seleção
   const [expandidos, setExpandidos] = useState<string[]>([]);
   const [equipamentosSelecionados, setEquipamentosSelecionados] = useState<string[]>([]);
 
@@ -56,14 +66,13 @@ export default function DashboardScreen() {
     return () => clearInterval(intervalo);
   }, [router]);
 
-  // Lógica para agrupar os alertas por Equipamento
   const alertasAgrupados = Object.values(alertas.reduce((acc: any, alerta) => {
     if (!acc[alerta.equipamentoCodigo]) {
       acc[alerta.equipamentoCodigo] = {
         codigo: alerta.equipamentoCodigo,
         descricao: alerta.equipamentoDescricao,
         alertas: [],
-        ultimoAlerta: alerta // Como a API já traz ordenado, o primeiro é o mais recente
+        ultimoAlerta: alerta 
       };
     }
     acc[alerta.equipamentoCodigo].alertas.push(alerta);
@@ -82,7 +91,6 @@ export default function DashboardScreen() {
     if (equipamentosSelecionados.length === 0) return;
     setLoading(true);
     
-    // Pega os IDs de TODOS os alertas que pertencem aos equipamentos selecionados
     const idsParaAtualizar = alertas
       .filter(a => equipamentosSelecionados.includes(a.equipamentoCodigo))
       .map(a => a.id);
@@ -149,11 +157,12 @@ export default function DashboardScreen() {
           renderItem={({ item }: any) => {
             const isExpanded = expandidos.includes(item.codigo);
             const isSelected = equipamentosSelecionados.includes(item.codigo);
-            const corStatus = obterCorStatus(item.ultimoAlerta.statusAlerta);
+            
+            const corGravidade = obterCorGravidade(item.ultimoAlerta.descricao);
+            const corWorkflow = obterCorWorkflow(item.ultimoAlerta.statusAlerta);
 
             return (
-              <View style={[styles.cardGroup, { borderLeftColor: corStatus, backgroundColor: isSelected ? '#f0f9ff' : '#fff' }]}>
-                {/* Cabeçalho do Equipamento */}
+              <View style={[styles.cardGroup, { borderLeftColor: corWorkflow, backgroundColor: isSelected ? '#f0f9ff' : '#fff' }]}>
                 <View style={styles.cardHeader}>
                   <Pressable style={styles.selectArea} onPress={() => toggleSelecao(item.codigo)}>
                     <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
@@ -166,22 +175,32 @@ export default function DashboardScreen() {
                   </Pressable>
                   
                   <Pressable style={styles.expandArea} onPress={() => toggleExpandir(item.codigo)}>
-                    <View style={[styles.statusBadge, { backgroundColor: corStatus }]}>
-                      <Text style={styles.statusBadgeText}>{item.ultimoAlerta.statusAlerta}</Text>
+                    <View style={styles.statusBadge}>
+                      <Text style={[styles.statusBadgeText, { color: corWorkflow }]}>
+                        {item.ultimoAlerta.statusAlerta}
+                      </Text>
                     </View>
                     <Text style={styles.expandIcon}>{isExpanded ? '▲' : '▼'}</Text>
                   </Pressable>
                 </View>
 
-                {/* Lista de alertas detalhados (aparece se expandido) */}
                 {isExpanded && (
                   <View style={styles.expandedContent}>
-                    <Text style={styles.expandedTitle}>Histórico de Leituras Pendentes ({item.alertas.length}):</Text>
+                    <Text style={styles.expandedTitle}>Histórico de Leituras ({item.alertas.length}):</Text>
                     {item.alertas.map((al: any) => (
                       <View key={al.id} style={styles.subCard}>
-                        <Text style={styles.subDesc}>{al.descricao}</Text>
+                        
+                        {/* AQUI O TEXTO SEGUE A COR DA GRAVIDADE (AMARELO, LARANJA, VERMELHO) */}
+                        <Text style={[styles.subDesc, { color: obterCorGravidade(al.descricao), fontWeight: 'bold' }]}>
+                          {al.descricao}
+                        </Text>
+                        
                         <Text style={styles.subDate}>{new Date(al.dataAlerta).toLocaleString('pt-BR')}</Text>
-                        <Text style={[styles.subStatus, { color: obterCorStatus(al.statusAlerta) }]}>{al.statusAlerta}</Text>
+                        
+                        {/* AQUI O STATUS DE TRABALHO SEGUE A COR DA EQUIPE (AZUL, VERDE) */}
+                        <Text style={[styles.subStatus, { color: obterCorWorkflow(al.statusAlerta) }]}>
+                          Status: {al.statusAlerta}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -205,7 +224,7 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   navButton: { flex: 0.48, backgroundColor: '#208AEF', borderRadius: 8, padding: 14 },
   navButtonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
-actionBar: { flexDirection: 'column', alignItems: 'center', backgroundColor: '#e2e8f0', padding: 15, borderRadius: 8, marginBottom: 10 },
+  actionBar: { flexDirection: 'column', alignItems: 'center', backgroundColor: '#e2e8f0', padding: 15, borderRadius: 8, marginBottom: 10 },
   actionText: { fontWeight: 'bold', color: '#333', marginBottom: 12, fontSize: 15 },
   actionButtons: { flexDirection: 'row', justifyContent: 'center', width: '100%', gap: 10 },
   btnAction: { flex: 1, paddingVertical: 10, borderRadius: 6, alignItems: 'center' },
@@ -220,14 +239,14 @@ actionBar: { flexDirection: 'column', alignItems: 'center', backgroundColor: '#e
   equipment: { color: '#1e293b', fontSize: 16, fontWeight: 'bold' },
   equipmentDesc: { color: '#475569', fontSize: 13 },
   expandArea: { flexDirection: 'row', alignItems: 'center', paddingLeft: 10 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, marginRight: 8 },
-  statusBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  statusBadge: { paddingHorizontal: 4, paddingVertical: 4, marginRight: 8 },
+  statusBadgeText: { fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase' }, 
   expandIcon: { fontSize: 16, color: '#64748b' },
   expandedContent: { backgroundColor: '#f8fafc', padding: 16, borderTopWidth: 1, borderColor: '#e2e8f0' },
   expandedTitle: { fontWeight: 'bold', color: '#475569', marginBottom: 10 },
   subCard: { backgroundColor: '#fff', padding: 10, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8 },
-  subDesc: { fontSize: 14, color: '#333' },
+  subDesc: { fontSize: 15 }, 
   subDate: { fontSize: 12, color: '#64748b', marginTop: 4 },
-  subStatus: { fontSize: 12, fontWeight: 'bold', marginTop: 4 },
+  subStatus: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textTransform: 'uppercase' },
   empty: { color: '#888', marginTop: 40, textAlign: 'center' },
 });

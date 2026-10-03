@@ -28,11 +28,22 @@ export default function MenuCadastros() {
           <Text style={styles.cardTitle}>Famílias</Text>
           <Text style={styles.cardDesc}>Agrupar equipamentos</Text>
         </Pressable>
+
+        <Pressable style={styles.card} onPress={() => router.push('/cadastros/parametro')}>
+          <Text style={styles.cardTitle}>Parâmetros</Text>
+          <Text style={styles.cardDesc}>Gerenciar grandezas físicas</Text>
+        </Pressable>
+        
+        <Pressable style={styles.card} onPress={() => router.push('/cadastros/unidade')}>
+          <Text style={styles.cardTitle}>Unidades</Text>
+          <Text style={styles.cardDesc}>Gerenciar unidades de medida</Text>
+        </Pressable>
+
       </View>
 
       <Text style={styles.sectionTitle}>Regras de Negócio</Text>
       <Pressable style={styles.cardFull} onPress={() => router.push('/cadastros/associar-parametro')}>
-        <Text style={styles.cardTitle}>Limites Preditivos (N:N)</Text>
+        <Text style={styles.cardTitle}>Limites Preditivos</Text>
         <Text style={styles.cardDesc}>Definir Valor Nominal e Limites de Alerta/Crítico por ativo.</Text>
       </Pressable>
 
