@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const API_URL = 'https://qlvmzrjr-7008.brs.devtunnels.ms/api';
 
@@ -70,7 +71,7 @@ export default function AssociarParametro() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      Alert.alert('Sucesso', 'Parâmetro vinculado com sucesso ao equipamento!');
+      Alert.alert('Sucesso', 'Regra preditiva vinculada com sucesso!');
       router.back();
     } catch (error) {
       Alert.alert('Erro', 'Falha ao vincular o parâmetro.');
@@ -83,69 +84,162 @@ export default function AssociarParametro() {
   if (loadingDados) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#208AEF" />
-        <Text>Carregando dados...</Text>
+        <ActivityIndicator size="large" color="#16a34a" />
+        <Text style={{ marginTop: 10, color: '#64748b' }}>Carregando infraestrutura...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={styles.title}>Regras Preditivas</Text>
-
-      <Text style={styles.label}>Equipamento *</Text>
-      <View style={styles.pickerContainer}>
-        <Picker selectedValue={equipamentoCode} onValueChange={setEquipamentoCode}>
-          <Picker.Item label="Selecione o equipamento..." value="" />
-          {equipamentos.map((eq) => (
-            <Picker.Item key={eq.code} label={`${eq.code} - ${eq.descricao}`} value={eq.code} />
-          ))}
-        </Picker>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Regras Preditivas</Text>
+        <Pressable onPress={() => router.back()} style={styles.voltarButton}>
+          <Text style={styles.voltarText}>Voltar</Text>
+        </Pressable>
       </View>
 
-      <Text style={styles.label}>Parâmetro de Leitura *</Text>
-      <View style={styles.pickerContainer}>
-        <Picker selectedValue={parametroCode} onValueChange={setParametroCode}>
-          <Picker.Item label="Ex: Temperatura, Vibração..." value="" />
-          {parametros.map((param) => (
-            <Picker.Item key={param.code} label={param.descricao} value={param.code} />
-          ))}
-        </Picker>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.formContainer}>
+          <Text style={styles.formTitle}>Vincular Parâmetro ao Ativo</Text>
 
-      <Text style={styles.label}>Valor Esperado (Ideal) *</Text>
-      <TextInput style={styles.input} placeholder="Ex: 30" keyboardType="numeric" value={valorEsperado} onChangeText={setValorEsperado} />
+          <Text style={styles.label}>Equipamento *</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={equipamentoCode} onValueChange={setEquipamentoCode} style={styles.picker}>
+              <Picker.Item label="Selecione o equipamento..." value="" />
+              {equipamentos.map((eq) => (
+                <Picker.Item 
+                  key={eq.codigo || eq.code} 
+                  label={`${eq.codigo || eq.code} - ${eq.descricao || eq.nome}`} 
+                  value={eq.codigo || eq.code} 
+                />
+              ))}
+            </Picker>
+          </View>
 
-      <Text style={styles.label}>Valor Nominal (Tolerância) *</Text>
-      <TextInput style={styles.input} placeholder="Ex: 10 (Atenção dispara em 8)" keyboardType="numeric" value={valorNominal} onChangeText={setValorNominal} />
+          <Text style={styles.label}>Parâmetro de Leitura *</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={parametroCode} onValueChange={setParametroCode} style={styles.picker}>
+              <Picker.Item label="Ex: Temperatura, Vibração..." value="" />
+              {parametros.map((param) => (
+                <Picker.Item 
+                  key={param.codigo || param.code} 
+                  label={`${param.codigo || param.code} - ${param.descricao}`} 
+                  value={param.codigo || param.code} 
+                />
+              ))}
+            </Picker>
+          </View>
 
-      <Text style={styles.label}>Limite Mínimo Crítico *</Text>
-      <TextInput style={styles.input} placeholder="Ex: 10" keyboardType="numeric" value={valorMinimo} onChangeText={setValorMinimo} />
+          {/* CAMPOS NUMÉRICOS ALINHADOS LADO A LADO */}
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Valor Esperado</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="Ex: 30" 
+                keyboardType="numeric" 
+                value={valorEsperado} 
+                onChangeText={setValorEsperado} 
+              />
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Valor Nominal</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="Tolerância (Ex: 5)" 
+                keyboardType="numeric" 
+                value={valorNominal} 
+                onChangeText={setValorNominal} 
+              />
+            </View>
+          </View>
 
-      <Text style={styles.label}>Limite Máximo Crítico *</Text>
-      <TextInput style={styles.input} placeholder="Ex: 50" keyboardType="numeric" value={valorMaximo} onChangeText={setValorMaximo} />
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Limite Mínimo</Text>
+              <TextInput 
+                style={[styles.input, styles.inputCritico]} 
+                placeholder="Ex: 10" 
+                keyboardType="numeric" 
+                value={valorMinimo} 
+                onChangeText={setValorMinimo} 
+              />
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Limite Máximo</Text>
+              <TextInput 
+                style={[styles.input, styles.inputCritico]} 
+                placeholder="Ex: 50" 
+                keyboardType="numeric" 
+                value={valorMaximo} 
+                onChangeText={setValorMaximo} 
+              />
+            </View>
+          </View>
 
-      <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={salvarAssociacao} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Vincular Parâmetro</Text>}
-      </Pressable>
-      
-      <Pressable style={styles.buttonOutline} onPress={() => router.back()}>
-        <Text style={styles.buttonOutlineText}>Cancelar</Text>
-      </Pressable>
-    </ScrollView>
+          <Pressable 
+            style={[styles.saveButton, loading && styles.disabledButton]} 
+            onPress={salvarAssociacao} 
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Gravar Regra Preditiva</Text>
+            )}
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 14, color: '#666', marginBottom: 5, fontWeight: 'bold' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
-  pickerContainer: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginBottom: 15, overflow: 'hidden' },
-  button: { backgroundColor: '#208AEF', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10, marginTop: 10 },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  buttonOutline: { padding: 15, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#208AEF' },
-  buttonOutlineText: { color: '#208AEF', fontSize: 16, fontWeight: 'bold' }
+  safeArea: { flex: 1, backgroundColor: '#f5f5f5' },
+  scrollContainer: { padding: 20, paddingBottom: 40 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+  
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, marginTop: 10, paddingHorizontal: 20 },
+  title: { color: '#333', fontSize: 20, fontWeight: 'bold' },
+  voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 9 },
+  voltarText: { color: '#fff', fontWeight: 'bold' },
+
+  formContainer: { backgroundColor: '#fff', padding: 20, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', elevation: 3 },
+  formTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginBottom: 20 },
+  
+  label: { fontSize: 14, fontWeight: 'bold', color: '#475569', marginBottom: 6 },
+  
+  input: { 
+    backgroundColor: '#f8fafc', 
+    borderWidth: 2, 
+    borderColor: '#94a3b8', 
+    borderRadius: 8, 
+    padding: 14, 
+    marginBottom: 15, 
+    fontSize: 16, 
+    color: '#1e293b' 
+  },
+  
+  inputCritico: {
+    borderColor: '#ef4444', // Borda vermelha para destacar que é um limite crítico
+    backgroundColor: '#fef2f2'
+  },
+  
+  pickerWrapper: { 
+    backgroundColor: '#f8fafc', 
+    borderWidth: 2, 
+    borderColor: '#94a3b8', 
+    borderRadius: 8, 
+    marginBottom: 20, 
+    overflow: 'hidden' 
+  },
+  picker: { height: 55 },
+
+  row: { flexDirection: 'row', gap: 12 },
+  col: { flex: 1 },
+
+  saveButton: { backgroundColor: '#16a34a', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  disabledButton: { backgroundColor: '#94a3b8' },
+  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
