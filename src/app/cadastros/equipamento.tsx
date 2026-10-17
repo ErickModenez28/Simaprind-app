@@ -25,6 +25,9 @@ export default function CadastroEquipamento() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
+  // Estado para controlar a visibilidade do formulário (Acordeão)
+  const [formVisible, setFormVisible] = useState(false);
+
   // Estados do formulário
   const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null);
   const [codigo, setCodigo] = useState('');
@@ -42,7 +45,6 @@ export default function CadastroEquipamento() {
       const token = await SecureStore.getItemAsync('jwtToken');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Corrigida a rota de Familias para FamiliaEquipamentos
       const [resEq, resFam, resLoc] = await Promise.all([
         axios.get(`${API_URL}/Equipamentos`, { headers }),
         axios.get(`${API_URL}/FamiliaEquipamentos`, { headers }),
@@ -54,7 +56,12 @@ export default function CadastroEquipamento() {
       setLocalizacoes(resLoc.data);
 
       if (resFam.data.length > 0) setIdFamilia(resFam.data[0].id);
-      if (resLoc.data.length > 0) setIdLocalizacao(resLoc.data[0].id);
+      
+      const locaisParaEquipamento = resLoc.data.filter((loc: any) => 
+        loc.atrelaEquipamento === 1 || loc.atrelaEquipamento === true
+      );
+      if (locaisParaEquipamento.length > 0) setIdLocalizacao(locaisParaEquipamento[0].id);
+
     } catch (error: any) {
       console.error("ERRO CARREGAMENTO: ", error.message);
       Alert.alert('Erro', 'Não foi possível carregar os dados base.');
@@ -70,15 +77,23 @@ export default function CadastroEquipamento() {
     setIdLocalizacao(eq.idLocalizacao);
     setAtivo(eq.ativo === 1 || eq.ativo === true);
     setIdEmEdicao(eq.id!);
+    setFormVisible(true); // Expande o formulário automaticamente
   };
 
   const cancelarEdicao = () => {
     setCodigo('');
     setDescricao('');
     if (familias.length > 0) setIdFamilia(familias[0].id);
-    if (localizacoes.length > 0) setIdLocalizacao(localizacoes[0].id);
+    
+    const locaisParaEquipamento = localizacoes.filter((loc: any) => 
+      loc.atrelaEquipamento === 1 || loc.atrelaEquipamento === true
+    );
+    if (locaisParaEquipamento.length > 0) setIdLocalizacao(locaisParaEquipamento[0].id);
+    else setIdLocalizacao('');
+
     setAtivo(true);
     setIdEmEdicao(null);
+    setFormVisible(false); // Recolhe o formulário
   };
 
   const salvarEquipamento = async () => {
@@ -162,88 +177,106 @@ export default function CadastroEquipamento() {
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>
-          {idEmEdicao ? `Editando: ${codigo}` : 'Novo Equipamento'}
-        </Text>
+        {/* CABEÇALHO DO ACORDEÃO */}
+        <Pressable 
+          style={styles.accordionHeader} 
+          onPress={() => setFormVisible(!formVisible)}
+        >
+          <Text style={styles.formTitle}>
+            {idEmEdicao ? `Editando: ${codigo}` : '➕ Novo Equipamento'}
+          </Text>
+          <Text style={styles.accordionIcon}>
+            {formVisible ? '▲ Ocultar' : '▼ Expandir'}
+          </Text>
+        </Pressable>
         
-        <View style={styles.row}>
-          <View style={styles.colHalf}>
-            <Text style={styles.label}>Código</Text>
+        {/* CONTEÚDO DO FORMULÁRIO */}
+        {formVisible && (
+          <View style={styles.formBody}>
+            <View style={styles.row}>
+              <View style={styles.colHalf}>
+                <Text style={styles.label}>Código</Text>
+                <TextInput
+                  style={styles.inputCompact}
+                  placeholder="Ex: MOT-001"
+                  value={codigo}
+                  onChangeText={setCodigo}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={styles.colHalf}>
+                <Text style={styles.label}>Família</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={idFamilia}
+                    onValueChange={(itemValue) => setIdFamilia(itemValue)}
+                    style={styles.pickerCompact}
+                    itemStyle={styles.pickerItemCompact}
+                  >
+                    {familias.map((fam) => (
+                      <Picker.Item key={fam.id} label={`${fam.codigo || fam.code}`} value={fam.id} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Descrição</Text>
             <TextInput
               style={styles.inputCompact}
-              placeholder="Ex: MOT-001"
-              value={codigo}
-              onChangeText={setCodigo}
-              autoCapitalize="characters"
+              placeholder="Ex: Motor Elétrico"
+              value={descricao}
+              onChangeText={setDescricao}
             />
-          </View>
-          <View style={styles.colHalf}>
-            <Text style={styles.label}>Família</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={idFamilia}
-                onValueChange={(itemValue) => setIdFamilia(itemValue)}
-                style={styles.pickerCompact}
+
+            <View style={styles.row}>
+              <View style={[styles.colHalf, { width: '65%' }]}>
+                <Text style={styles.label}>Localização (Atreláveis)</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={idLocalizacao}
+                    onValueChange={(itemValue) => setIdLocalizacao(itemValue)}
+                    style={styles.pickerCompact}
+                    itemStyle={styles.pickerItemCompact}
+                  >
+                    {localizacoes
+                      .filter(loc => loc.atrelaEquipamento === 1 || loc.atrelaEquipamento === true)
+                      .map((loc) => (
+                        <Picker.Item key={loc.id} label={`${loc.codigo}`} value={loc.id} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+              <View style={[styles.colHalf, { width: '30%', alignItems: 'center' }]}>
+                <Text style={styles.label}>Ativo</Text>
+                <Switch 
+                  value={ativo} 
+                  onValueChange={setAtivo} 
+                  trackColor={{ false: "#94a3b8", true: "#16a34a" }} 
+                  style={{ marginTop: 8 }}
+                />
+              </View>
+            </View>
+
+            <View style={styles.botoesRow}>
+              <Pressable 
+                style={[styles.saveButton, salvando && styles.disabledButton]} 
+                onPress={salvarEquipamento} 
+                disabled={salvando}
               >
-                {familias.map((fam) => (
-                  <Picker.Item key={fam.id} label={`${fam.codigo || fam.code}`} value={fam.id} />
-                ))}
-              </Picker>
+                <Text style={styles.saveButtonText}>
+                  {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
+                </Text>
+              </Pressable>
+
+              {idEmEdicao !== null && (
+                <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </Pressable>
+              )}
             </View>
           </View>
-        </View>
-
-        <Text style={styles.label}>Descrição</Text>
-        <TextInput
-          style={styles.inputCompact}
-          placeholder="Ex: Motor Elétrico"
-          value={descricao}
-          onChangeText={setDescricao}
-        />
-
-        <View style={styles.row}>
-          <View style={[styles.colHalf, { width: '65%' }]}>
-            <Text style={styles.label}>Localização</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={idLocalizacao}
-                onValueChange={(itemValue) => setIdLocalizacao(itemValue)}
-                style={styles.pickerCompact}
-              >
-                {localizacoes.map((loc) => (
-                  <Picker.Item key={loc.id} label={`${loc.codigo}`} value={loc.id} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-          <View style={[styles.colHalf, { width: '30%', alignItems: 'center' }]}>
-            <Text style={styles.label}>Ativo</Text>
-            <Switch 
-              value={ativo} 
-              onValueChange={setAtivo} 
-              trackColor={{ false: "#94a3b8", true: "#16a34a" }} 
-              style={{ marginTop: 8 }}
-            />
-          </View>
-        </View>
-
-        <View style={styles.botoesRow}>
-          <Pressable 
-            style={[styles.saveButton, salvando && styles.disabledButton]} 
-            onPress={salvarEquipamento} 
-            disabled={salvando}
-          >
-            <Text style={styles.saveButtonText}>
-              {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
-            </Text>
-          </Pressable>
-
-          {idEmEdicao !== null && (
-            <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </Pressable>
-          )}
-        </View>
+        )}
       </View>
 
       {loading ? (
@@ -285,14 +318,21 @@ const styles = StyleSheet.create({
   voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
   voltarText: { color: '#fff', fontWeight: 'bold' },
   
-  formContainer: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
-  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 10 },
+  // Estilos do Acordeão
+  formContainer: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2, overflow: 'hidden' },
+  accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f8fafc' },
+  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
+  accordionIcon: { fontSize: 13, fontWeight: 'bold', color: '#64748b' },
+  formBody: { padding: 15, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  
   label: { fontSize: 12, fontWeight: 'bold', color: '#475569', marginBottom: 4 },
   
-  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, paddingHorizontal: 12, marginBottom: 10, fontSize: 14, color: '#1e293b', height: 50, justifyContent: 'center' },
-  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, justifyContent: 'center' },
-  pickerCompact: { height: 50, color: '#1e293b' },
-  
+  // Aumento da altura para 55 e fonte para 13 (idêntico a Localizações)
+  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, paddingHorizontal: 12, marginBottom: 10, fontSize: 13, color: '#1e293b', height: 55, justifyContent: 'center' },
+  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, justifyContent: 'center', height: 55 },
+  pickerCompact: { height: 55, color: '#1e293b', fontSize: 13 }, 
+  pickerItemCompact: { fontSize: 13 },
+
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   colHalf: { width: '48%' },
 

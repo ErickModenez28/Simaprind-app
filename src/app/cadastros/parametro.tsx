@@ -30,6 +30,9 @@ export default function CadastroParametros() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
+  // NOVO: Estado para controlar o Acordeão
+  const [formVisible, setFormVisible] = useState(false);
+
   // Estados do Formulário
   const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null);
   const [codigo, setCodigo] = useState('');
@@ -70,6 +73,7 @@ export default function CadastroParametros() {
     setIdUnidade(param.idUnidade);
     setTipoDado(param.tipoDado || 'NUMERICO');
     setIdEmEdicao(param.id!);
+    setFormVisible(true); // Expande o formulário ao editar
   };
 
   const cancelarEdicao = () => {
@@ -78,6 +82,7 @@ export default function CadastroParametros() {
     if (unidades.length > 0) setIdUnidade(unidades[0].id);
     setTipoDado('NUMERICO');
     setIdEmEdicao(null);
+    setFormVisible(false); // Recolhe o formulário ao cancelar
   };
 
   const salvarParametro = async () => {
@@ -103,22 +108,19 @@ export default function CadastroParametros() {
       };
 
       if (idParaSalvar) {
-        // Atualizar (PUT)
         await axios.put(`${API_PARAMETROS}/${idParaSalvar}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         Alert.alert('Sucesso', 'Parâmetro atualizado com sucesso!');
       } else {
-        // Criar (POST)
         await axios.post(API_PARAMETROS, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         Alert.alert('Sucesso', 'Parâmetro salvo com sucesso!');
       }
       
-      cancelarEdicao();
+      cancelarEdicao(); // Limpa e fecha o formulário
       
-      // Recarrega apenas os parâmetros para atualizar a lista
       const resParam = await axios.get<Parametro[]>(API_PARAMETROS, { headers: { Authorization: `Bearer ${token}` } });
       setParametros(resParam.data);
 
@@ -167,81 +169,92 @@ export default function CadastroParametros() {
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>
-          {idEmEdicao ? `Editando: ${codigo}` : 'Novo Parâmetro'}
-        </Text>
+        {/* CABEÇALHO DO ACORDEÃO */}
+        <Pressable 
+          style={styles.accordionHeader} 
+          onPress={() => setFormVisible(!formVisible)}
+        >
+          <Text style={styles.formTitle}>
+            {idEmEdicao ? `Editando: ${codigo}` : '➕ Novo Parâmetro'}
+          </Text>
+          <Text style={styles.accordionIcon}>
+            {formVisible ? '▲ Ocultar' : '▼ Expandir'}
+          </Text>
+        </Pressable>
         
-        {/* ROW 1: Lado a Lado (Código e Tipo de Dado) para poupar espaço */}
-        <View style={styles.row}>
-          <View style={styles.colHalf}>
-            <Text style={styles.label}>Código</Text>
+        {/* CONTEÚDO DO FORMULÁRIO */}
+        {formVisible && (
+          <View style={styles.formBody}>
+            <View style={styles.row}>
+              <View style={styles.colHalf}>
+                <Text style={styles.label}>Código</Text>
+                <TextInput
+                  style={styles.inputCompact}
+                  placeholder="Ex: TEMP_01"
+                  value={codigo}
+                  onChangeText={setCodigo}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={styles.colHalf}>
+                <Text style={styles.label}>Tipo de Dado</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={tipoDado}
+                    onValueChange={(itemValue) => setTipoDado(itemValue)}
+                    style={styles.pickerCompact}
+                  >
+                    <Picker.Item label="Numérico" value="NUMERICO" />
+                    <Picker.Item label="Texto" value="TEXTO" />
+                  </Picker>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Descrição</Text>
             <TextInput
               style={styles.inputCompact}
-              placeholder="Ex: TEMP_01"
-              value={codigo}
-              onChangeText={setCodigo}
-              autoCapitalize="characters"
+              placeholder="Ex: Temperatura do Óleo"
+              value={descricao}
+              onChangeText={setDescricao}
             />
-          </View>
-          <View style={styles.colHalf}>
-            <Text style={styles.label}>Tipo de Dado</Text>
+
+            <Text style={styles.label}>Unidade de Medida</Text>
             <View style={styles.pickerContainer}>
               <Picker
-                selectedValue={tipoDado}
-                onValueChange={(itemValue) => setTipoDado(itemValue)}
+                selectedValue={idUnidade}
+                onValueChange={(itemValue) => setIdUnidade(itemValue)}
                 style={styles.pickerCompact}
               >
-                <Picker.Item label="Numérico" value="NUMERICO" />
-                <Picker.Item label="Texto" value="TEXTO" />
+                {unidades.map((unidade) => (
+                  <Picker.Item 
+                    key={unidade.id} 
+                    label={`${unidade.codigo} - ${unidade.descricao}`} 
+                    value={unidade.id} 
+                  />
+                ))}
               </Picker>
             </View>
+
+            <View style={styles.botoesRow}>
+              <Pressable 
+                style={[styles.saveButton, salvando && styles.disabledButton]} 
+                onPress={salvarParametro}
+                disabled={salvando}
+              >
+                <Text style={styles.saveButtonText}>
+                  {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
+                </Text>
+              </Pressable>
+
+              {idEmEdicao !== null && (
+                <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
-
-        {/* ROW 2: Descrição */}
-        <Text style={styles.label}>Descrição</Text>
-        <TextInput
-          style={styles.inputCompact}
-          placeholder="Ex: Temperatura do Óleo"
-          value={descricao}
-          onChangeText={setDescricao}
-        />
-
-        {/* ROW 3: Unidade de Medida */}
-        <Text style={styles.label}>Unidade de Medida</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={idUnidade}
-            onValueChange={(itemValue) => setIdUnidade(itemValue)}
-            style={styles.pickerCompact}
-          >
-            {unidades.map((unidade) => (
-              <Picker.Item 
-                key={unidade.id} 
-                label={`${unidade.codigo} - ${unidade.descricao}`} 
-                value={unidade.id} 
-              />
-            ))}
-          </Picker>
-        </View>
-
-        <View style={styles.botoesRow}>
-          <Pressable 
-            style={[styles.saveButton, salvando && styles.disabledButton]} 
-            onPress={salvarParametro}
-            disabled={salvando}
-          >
-            <Text style={styles.saveButtonText}>
-              {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
-            </Text>
-          </Pressable>
-
-          {idEmEdicao !== null && (
-            <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </Pressable>
-          )}
-        </View>
+        )}
       </View>
 
       {/* LISTA DE PARÂMETROS */}
@@ -280,9 +293,13 @@ const styles = StyleSheet.create({
   voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
   voltarText: { color: '#fff', fontWeight: 'bold' },
   
-  // CONTAINER COMPACTADO
-  formContainer: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
-  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 10 },
+  // Estilos do Acordeão
+  formContainer: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2, overflow: 'hidden' },
+  accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f8fafc' },
+  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
+  accordionIcon: { fontSize: 13, fontWeight: 'bold', color: '#64748b' },
+  formBody: { padding: 15, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  
   label: { fontSize: 12, fontWeight: 'bold', color: '#475569', marginBottom: 4 },
   
   inputCompact: { 
@@ -294,9 +311,10 @@ const styles = StyleSheet.create({
     marginBottom: 10, 
     fontSize: 14, 
     color: '#1e293b',
-    height: 60, // <-- Altura igual à do pickerContainer
+    height: 60,
     justifyContent: 'center'
-  },pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, height: 60, justifyContent: 'center' },
+  },
+  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, height: 60, justifyContent: 'center' },
   pickerCompact: { height: 60 },
   
   // GRID

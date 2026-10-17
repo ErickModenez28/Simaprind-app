@@ -20,6 +20,9 @@ export default function CadastroFamilia() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
+  // NOVO: Estado para controlar a visibilidade do formulário (Acordeão)
+  const [formVisible, setFormVisible] = useState(false);
+
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null);
@@ -48,12 +51,14 @@ export default function CadastroFamilia() {
     setCodigo(codigoDaFamilia);
     setDescricao(familia.descricao);
     setIdEmEdicao(familia.id!);
+    setFormVisible(true); // Expande o formulário ao editar
   };
 
   const cancelarEdicao = () => {
     setCodigo('');
     setDescricao('');
     setIdEmEdicao(null);
+    setFormVisible(false); // Recolhe o formulário ao cancelar
   };
 
   const salvarFamilia = async () => {
@@ -95,7 +100,7 @@ export default function CadastroFamilia() {
         Alert.alert('Sucesso', 'Família salva com sucesso!');
       }
 
-      cancelarEdicao();
+      cancelarEdicao(); // Limpa os campos e fecha o acordeão
       carregarFamilias();
     } catch (error: any) {
       const erroBackend = error.response?.data?.title || error.response?.data || error.message;
@@ -140,48 +145,62 @@ export default function CadastroFamilia() {
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>
-          {idEmEdicao ? `Editando: ${codigo}` : 'Nova Família'}
-        </Text>
-        
-        <Text style={styles.label}>Código</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: MOTORES"
-          value={codigo}
-          onChangeText={setCodigo}
-          autoCapitalize="characters"
-        />
+        {/* CABEÇALHO DO ACORDEÃO */}
+        <Pressable 
+          style={styles.accordionHeader} 
+          onPress={() => setFormVisible(!formVisible)}
+        >
+          <Text style={styles.formTitle}>
+            {idEmEdicao ? `Editando: ${codigo}` : '➕ Nova Família'}
+          </Text>
+          <Text style={styles.accordionIcon}>
+            {formVisible ? '▲ Ocultar' : '▼ Expandir'}
+          </Text>
+        </Pressable>
 
-        <Text style={styles.label}>Descrição</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Motores Elétricos Industriais"
-          value={descricao}
-          onChangeText={setDescricao}
-        />
+        {/* CONTEÚDO DO FORMULÁRIO */}
+        {formVisible && (
+          <View style={styles.formBody}>
+            <Text style={styles.label}>Código</Text>
+            <TextInput
+              style={styles.inputCompact}
+              placeholder="Ex: MOTORES"
+              value={codigo}
+              onChangeText={setCodigo}
+              autoCapitalize="characters"
+            />
 
-        <View style={styles.botoesRow}>
-          <Pressable 
-            style={[styles.saveButton, salvando && styles.disabledButton]} 
-            onPress={salvarFamilia} 
-            disabled={salvando}
-          >
-            <Text style={styles.saveButtonText}>
-              {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar Família')}
-            </Text>
-          </Pressable>
+            <Text style={styles.label}>Descrição</Text>
+            <TextInput
+              style={styles.inputCompact}
+              placeholder="Ex: Motores Elétricos Industriais"
+              value={descricao}
+              onChangeText={setDescricao}
+            />
 
-          {idEmEdicao !== null && (
-            <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </Pressable>
-          )}
-        </View>
+            <View style={styles.botoesRow}>
+              <Pressable 
+                style={[styles.saveButton, salvando && styles.disabledButton]} 
+                onPress={salvarFamilia} 
+                disabled={salvando}
+              >
+                <Text style={styles.saveButtonText}>
+                  {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
+                </Text>
+              </Pressable>
+
+              {idEmEdicao !== null && (
+                <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#208AEF" />
+        <ActivityIndicator size="large" color="#208AEF" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={familias}
@@ -209,28 +228,45 @@ export default function CadastroFamilia() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20 },
+  container: { flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 15 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, marginTop: 10 },
-  title: { color: '#333', fontSize: 18, fontWeight: 'bold', maxWidth: '75%' },
-  voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 9 },
+  title: { color: '#333', fontSize: 20, fontWeight: 'bold', maxWidth: '75%' },
+  voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
   voltarText: { color: '#fff', fontWeight: 'bold' },
-  formContainer: { backgroundColor: '#fff', padding: 20, borderRadius: 10, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0', elevation: 3 },
-  formTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginBottom: 15 },
-  label: { fontSize: 14, fontWeight: 'bold', color: '#475569', marginBottom: 6 },
-  input: { backgroundColor: '#f8fafc', borderWidth: 2, borderColor: '#94a3b8', borderRadius: 8, padding: 14, marginBottom: 15, fontSize: 16, color: '#1e293b' },
   
+  // Estilos do Acordeão
+  formContainer: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2, overflow: 'hidden' },
+  accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f8fafc' },
+  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
+  accordionIcon: { fontSize: 13, fontWeight: 'bold', color: '#64748b' },
+  formBody: { padding: 15, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  
+  label: { fontSize: 12, fontWeight: 'bold', color: '#475569', marginBottom: 4 },
+  
+  inputCompact: { 
+    backgroundColor: '#f8fafc', 
+    borderWidth: 1, 
+    borderColor: '#94a3b8', 
+    borderRadius: 6, 
+    paddingHorizontal: 12, 
+    marginBottom: 10, 
+    fontSize: 14, 
+    color: '#1e293b',
+    height: 55,
+    justifyContent: 'center'
+  },
+
   botoesRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
-  // Mantive a cor azul '#208AEF' que você estava a usar na tela de Famílias
-  saveButton: { flex: 1, backgroundColor: '#208AEF', padding: 15, borderRadius: 8, alignItems: 'center' },
+  saveButton: { flex: 1, backgroundColor: '#208AEF', padding: 12, borderRadius: 6, alignItems: 'center' },
   disabledButton: { backgroundColor: '#94a3b8' },
-  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  cancelButton: { flex: 1, backgroundColor: '#ef4444', padding: 15, borderRadius: 8, alignItems: 'center' },
-  cancelButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  cancelButton: { flex: 1, backgroundColor: '#ef4444', padding: 12, borderRadius: 6, alignItems: 'center' },
+  cancelButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   
-  card: { flexDirection: 'row', backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', elevation: 1 },
-  cardCodigo: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
-  cardDescricao: { fontSize: 14, color: '#475569', marginTop: 4 },
-  iconContainer: { padding: 5 },
-  deleteIcon: { fontSize: 22, color: '#ef4444' },
-  empty: { textAlign: 'center', color: '#64748b', marginTop: 30, fontSize: 15 }
+  card: { flexDirection: 'row', backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', elevation: 1 },
+  cardCodigo: { fontSize: 15, fontWeight: 'bold', color: '#1e293b' },
+  cardDescricao: { fontSize: 13, color: '#475569', marginTop: 4 },
+  iconContainer: { padding: 5, marginLeft: 10 },
+  deleteIcon: { fontSize: 20, color: '#ef4444' },
+  empty: { textAlign: 'center', color: '#64748b', marginTop: 30, fontSize: 14 }
 });
