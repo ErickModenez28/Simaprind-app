@@ -1,27 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Alert, ScrollView, Switch } from 'react-native';
+import { View, Text, TextInput, FlatList, Pressable, StyleSheet, ActivityIndicator, Alert, Switch, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Substitua pelo seu Dev Tunnel atual se ele mudar
-const API_URL = 'https://qlvmzrjr-7008.brs.devtunnels.ms/api';
+type Localizacao = {
+  id: number;
+  codigo: string;
+  descricao: string;
+  idPai?: number | null;
+  deposito: number | boolean;
+  nivel?: number;
+  ativo: number | boolean;
+};
+
+const API_URL = 'https://qlvmzrjr-7008.brs.devtunnels.ms/api/Localizacoes';
 
 export default function CadastroLocalizacao() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [loadingDados, setLoadingDados] = useState(true);
+  const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
 
-  // Lista para o Dropdown de Localização Pai
-  const [localizacoes, setLocalizacoes] = useState<any[]>([]);
-
-  // Estados do formulário
+  // Estados do Formulário (Upsert)
+  const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null);
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [codePai, setCodePai] = useState('');
+  const [idPai, setIdPai] = useState<number | ''>('');
   const [isDeposito, setIsDeposito] = useState(false);
   const [ativo, setAtivo] = useState(true);
+
+  // Controle de expansão dos nós na árvore (armazena os IDs abertos)
+  const [expandidos, setExpandidos] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     carregarLocalizacoes();
@@ -30,18 +42,34 @@ export default function CadastroLocalizacao() {
   const carregarLocalizacoes = async () => {
     try {
       const token = await SecureStore.getItemAsync('jwtToken');
-      const response = await axios.get(`${API_URL}/Localizacoes`, {
+      const response = await axios.get<Localizacao[]>(API_URL, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log("Localizações carregadas: ", response.data);
       setLocalizacoes(response.data);
     } catch (error) {
-      console.error("Erro real na busca de localizações:", error);
-      Alert.alert('Aviso', 'Não foi possível carregar as localizações existentes (ou a lista está vazia).');
+      console.error("Erro ao carregar localizações:", error);
+      Alert.alert('Erro', 'Não foi possível carregar as localizações.');
     } finally {
-      setLoadingDados(false);
+      setLoading(false);
     }
+  };
+
+  const prepararEdicao = (loc: Localizacao) => {
+    setCodigo(loc.codigo);
+    setDescricao(loc.descricao);
+    setIdPai(loc.idPai ?? '');
+    setIsDeposito(loc.deposito === 1 || loc.deposito === true);
+    setAtivo(loc.ativo === 1 || loc.ativo === true);
+    setIdEmEdicao(loc.id);
+  };
+
+  const cancelarEdicao = () => {
+    setCodigo('');
+    setDescricao('');
+    setIdPai('');
+    setIsDeposito(false);
+    setAtivo(true);
+    setIdEmEdicao(null);
   };
 
   const salvarLocalizacao = async () => {
@@ -50,98 +78,266 @@ export default function CadastroLocalizacao() {
       return;
     }
 
-    setLoading(true);
+    setSalvando(true);
     try {
       const token = await SecureStore.getItemAsync('jwtToken');
-      
-      // POST com ID 0 e idPai forçado como número
-      await axios.post(`${API_URL}/Localizacoes`, {
-        id: 0,
-        codigo: codigo.trim(),
-        descricao: descricao.trim(),
-        idPai: codePai === '' ? null : Number(codePai), 
-        deposito: isDeposito ? 1 : 0,
-        nivel: codePai === '' ? 1 : 2,
-        ativo: ativo ? 1 : 0
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const codigoFormatado = codigo.toUpperCase().trim();
 
-      Alert.alert('Sucesso', 'Localização cadastrada com sucesso!');
-      router.back();
+      const locExistente = localizacoes.find(l => l.codigo === codigoFormatado);
+      const idParaSalvar = idEmEdicao || (locExistente ? locExistente.id : null);
+
+      const nivelCalculado = idPai === '' ? 1 : 2; // Pode ajustar conforme a profundidade real
+
+      const payload = {
+        id: idParaSalvar || 0,
+        codigo: codigoFormatado,
+        descricao: descricao.trim(),
+        idPai: idPai === '' ? null : Number(idPai),
+        deposito: isDeposito ? 1 : 0,
+        nivel: nivelCalculado,
+        ativo: ativo ? 1 : 0
+      };
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (idParaSalvar) {
+        await axios.put(`${API_URL}/${idParaSalvar}`, payload, { headers });
+        Alert.alert('Sucesso', 'Localização atualizada com sucesso!');
+      } else {
+        await axios.post(API_URL, payload, { headers });
+        Alert.alert('Sucesso', 'Localização cadastrada com sucesso!');
+      }
+
+      cancelarEdicao();
+      carregarLocalizacoes();
     } catch (error: any) {
-      // Captura de erro detalhada da API
       const detalhesErro = error.response?.data?.errors || error.response?.data || error.message;
-      console.log("DETALHES DO ERRO 400: ", detalhesErro);
       Alert.alert('Erro na API', JSON.stringify(detalhesErro));
     } finally {
-      setLoading(false);
+      setSalvando(false);
     }
   };
 
-  if (loadingDados) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#208AEF" />
-        <Text>Carregando dados...</Text>
-      </View>
-    );
-  }
+  const deletarLocalizacao = async (id: number) => {
+    try {
+      const token = await SecureStore.getItemAsync('jwtToken');
+      await axios.delete(`${API_URL}/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (idEmEdicao === id) cancelarEdicao();
+      carregarLocalizacoes();
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível remover. Verifique se não possui sub-locais ou equipamentos vinculados.');
+    }
+  };
+
+  const confirmarDelecao = (id: number, codigoDesc: string) => {
+    Alert.alert('Remover', `Deseja remover a localização ${codigoDesc}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: () => deletarLocalizacao(id) }
+    ]);
+  };
+
+  // Alterna o estado de expansão de um nó na árvore
+  const toggleExpand = (id: number) => {
+    setExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Constrói a lista achatada estruturada em árvore com indentação
+  const renderizarArvore = () => {
+    const raiz = localizacoes.filter(l => !l.idPai); // Nós principais (sem pai)
+    const resultado: { item: Localizacao; nivelIndentacao: number; temFilhos: boolean }[] = [];
+
+    const percorrer = (idPaiAtual: number | null, indentacao: number) => {
+      const filhos = localizacoes.filter(l => l.idPai === idPaiAtual);
+      filhos.forEach(filho => {
+        const temFilhos = localizacoes.some(l => l.idPai === filho.id);
+        resultado.push({ item: filho, nivelIndentacao: indentacao, temFilhos });
+
+        // Se estiver expandido, percorre os filhos recursivamente
+        if (expandidos[filho.id]) {
+          percorrer(filho.id, indentacao + 1);
+        }
+      });
+    };
+
+    raiz.forEach(pai => {
+      const temFilhos = localizacoes.some(l => l.idPai === pai.id);
+      resultado.push({ item: pai, nivelIndentacao: 0, temFilhos });
+      if (expandidos[pai.id]) {
+        percorrer(pai.id, 1);
+      }
+    });
+
+    return resultado;
+  };
+
+  const arvoreDados = renderizarArvore();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={styles.title}>Nova Localização</Text>
-
-      <Text style={styles.label}>Código do Local *</Text>
-      <TextInput style={styles.input} placeholder="Ex: SET-MOAGEM" value={codigo} onChangeText={setCodigo} autoCapitalize="characters" />
-
-      <Text style={styles.label}>Descrição *</Text>
-      <TextInput style={styles.input} placeholder="Ex: Setor de Moagem Principal" value={descricao} onChangeText={setDescricao} />
-
-      <Text style={styles.label}>Pertence a qual local? (Hierarquia)</Text>
-      <View style={styles.pickerContainer}>
-        <Picker selectedValue={codePai} onValueChange={setCodePai}>
-          <Picker.Item label="Nenhum (Nível Principal)" value="" />
-          {localizacoes.map((loc) => (
-            /* CORRIGIDO: value agora é o loc.id */
-            <Picker.Item key={loc.id} label={`${loc.codigo} - ${loc.descricao}`} value={loc.id} />
-          ))}
-        </Picker>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Localizações</Text>
+        <Pressable onPress={() => router.back()} style={styles.voltarButton}>
+          <Text style={styles.voltarText}>Voltar</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.switchContainer}>
-        <Text style={styles.labelSwitch}>É um Depósito?</Text>
-        <Switch value={isDeposito} onValueChange={setIsDeposito} trackColor={{ false: "#767577", true: "#208AEF" }} />
+      {/* FORMULÁRIO COMPACTO (Upsert) */}
+      <View style={styles.formContainer}>
+        <Text style={styles.formTitle}>
+          {idEmEdicao ? `Editando: ${codigo}` : 'Nova Localização'}
+        </Text>
+        
+        <View style={styles.row}>
+          <View style={styles.colHalf}>
+            <Text style={styles.label}>Código</Text>
+            <TextInput
+              style={styles.inputCompact}
+              placeholder="Ex: SET-MOAGEM"
+              value={codigo}
+              onChangeText={setCodigo}
+              autoCapitalize="characters"
+            />
+          </View>
+          <View style={styles.colHalf}>
+            <Text style={styles.label}>Local Pai (Hierarquia)</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={idPai}
+                onValueChange={(itemValue) => setIdPai(itemValue)}
+                style={styles.pickerCompact}
+              >
+                <Picker.Item label="Nenhum (Raiz)" value="" />
+                {localizacoes
+                  .filter(l => l.id !== idEmEdicao) // Evita que um local seja pai de si mesmo
+                  .map((loc) => (
+                    <Picker.Item key={loc.id} label={`${loc.codigo} - ${loc.descricao}`} value={loc.id} />
+                  ))}
+              </Picker>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.label}>Descrição</Text>
+        <TextInput
+          style={styles.inputCompact}
+          placeholder="Ex: Setor de Moagem Principal"
+          value={descricao}
+          onChangeText={setDescricao}
+        />
+
+        <View style={styles.rowSwitches}>
+          <View style={styles.switchWrapper}>
+            <Text style={styles.labelSwitch}>Depósito?</Text>
+            <Switch value={isDeposito} onValueChange={setIsDeposito} trackColor={{ false: "#94a3b8", true: "#208AEF" }} />
+          </View>
+          <View style={styles.switchWrapper}>
+            <Text style={styles.labelSwitch}>Ativo?</Text>
+            <Switch value={ativo} onValueChange={setAtivo} trackColor={{ false: "#94a3b8", true: "#16a34a" }} />
+          </View>
+        </View>
+
+        <View style={styles.botoesRow}>
+          <Pressable 
+            style={[styles.saveButton, salvando && styles.disabledButton]} 
+            onPress={salvarLocalizacao} 
+            disabled={salvando}
+          >
+            <Text style={styles.saveButtonText}>
+              {salvando ? 'Aguarde...' : (idEmEdicao ? 'Atualizar' : 'Salvar')}
+            </Text>
+          </Pressable>
+
+          {idEmEdicao !== null && (
+            <Pressable style={styles.cancelButton} onPress={cancelarEdicao}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      <View style={styles.switchContainer}>
-        <Text style={styles.labelSwitch}>Local Ativo?</Text>
-        <Switch value={ativo} onValueChange={setAtivo} trackColor={{ false: "#767577", true: "#208AEF" }} />
-      </View>
+      {/* ÁRVORE DE LOCALIZAÇÕES EMBAIXO */}
+      {loading ? (
+        <ActivityIndicator size="large" color="#208AEF" style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={arvoreDados}
+          keyExtractor={(node) => node.item.id.toString()}
+          renderItem={({ item: node }) => {
+            const { item, nivelIndentacao, temFilhos } = node;
+            const estaExpandido = expandidos[item.id];
 
-      <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={salvarLocalizacao} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Salvar Localização</Text>}
-      </Pressable>
-      
-      <Pressable style={styles.buttonOutline} onPress={() => router.back()}>
-        <Text style={styles.buttonOutlineText}>Cancelar</Text>
-      </Pressable>
-    </ScrollView>
+            return (
+              <View style={[styles.cardTree, { marginLeft: nivelIndentacao * 20 }]}>
+                {/* Botão para Expandir/Recolher se tiver filhos */}
+                {temFilhos ? (
+                  <Pressable onPress={() => toggleExpand(item.id)} style={styles.expandButton}>
+                    <Text style={styles.expandIcon}>{estaExpandido ? '▼' : '▶'}</Text>
+                  </Pressable>
+                ) : (
+                  <View style={{ width: 20 }} />
+                )}
+
+                {/* Clicar no texto prepara a edição */}
+                <Pressable style={{ flex: 1 }} onPress={() => prepararEdicao(item)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.cardCodigo}>{item.codigo}</Text>
+                    {Boolean(item.deposito) && <Text style={styles.badgeDep}>DEP</Text>}
+                  </View>
+                  <Text style={styles.cardDescricao}>{item.descricao}</Text>
+                </Pressable>
+
+                <Pressable onPress={() => confirmarDelecao(item.id, item.codigo)} style={styles.iconContainer}>
+                  <Text style={styles.deleteIcon}>🗑️</Text>
+                </Pressable>
+              </View>
+            );
+          }}
+          ListEmptyComponent={<Text style={styles.empty}>Nenhuma localização cadastrada.</Text>}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 14, color: '#666', marginBottom: 5, fontWeight: 'bold' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
-  pickerContainer: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginBottom: 15, overflow: 'hidden' },
-  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, backgroundColor: '#fff', padding: 15, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
-  labelSwitch: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  button: { backgroundColor: '#208AEF', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10, marginTop: 10 },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  buttonOutline: { padding: 15, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#208AEF' },
-  buttonOutlineText: { color: '#208AEF', fontSize: 16, fontWeight: 'bold' }
+  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 15 },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: 5 },
+  title: { color: '#333', fontSize: 20, fontWeight: 'bold' },
+  voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  voltarText: { color: '#fff', fontWeight: 'bold' },
+  
+  formContainer: { backgroundColor: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
+  formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 10 },
+  label: { fontSize: 12, fontWeight: 'bold', color: '#475569', marginBottom: 4 },
+  
+  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, paddingHorizontal: 12, marginBottom: 10, fontSize: 14, color: '#1e293b', height: 50, justifyContent: 'center' },
+  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, justifyContent: 'center' },
+  pickerCompact: { height: 50, color: '#1e293b' },
+  
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  colHalf: { width: '48%' },
+
+  rowSwitches: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 5 },
+  switchWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  labelSwitch: { fontSize: 13, fontWeight: 'bold', color: '#475569' },
+
+  botoesRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
+  saveButton: { flex: 1, backgroundColor: '#208AEF', padding: 12, borderRadius: 6, alignItems: 'center' },
+  disabledButton: { backgroundColor: '#94a3b8' },
+  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  cancelButton: { flex: 1, backgroundColor: '#ef4444', padding: 12, borderRadius: 6, alignItems: 'center' },
+  cancelButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  
+  // ESTILOS DA ÁRVORE (TREE VIEW)
+  cardTree: { flexDirection: 'row', backgroundColor: '#fff', padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', elevation: 1 },
+  expandButton: { padding: 5, marginRight: 5 },
+  expandIcon: { fontSize: 12, color: '#208AEF', fontWeight: 'bold' },
+  cardCodigo: { fontSize: 14, fontWeight: 'bold', color: '#1e293b' },
+  cardDescricao: { fontSize: 12, color: '#475569', marginTop: 2 },
+  badgeDep: { backgroundColor: '#dbeafe', color: '#1d4ed8', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  iconContainer: { padding: 5 },
+  deleteIcon: { fontSize: 18, marginLeft: 10, color: '#ef4444' },
+  empty: { textAlign: 'center', color: '#64748b', marginTop: 20, fontSize: 14 }
 });
