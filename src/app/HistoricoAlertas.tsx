@@ -12,11 +12,11 @@ import {
   TextInput,
   Platform,
   Modal,
-  Dimensions, // NOVO: Para medir a largura da tela para o gráfico
+  Dimensions,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LineChart } from "react-native-chart-kit"; // NOVO: Biblioteca de Gráficos
+import { LineChart } from "react-native-chart-kit";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -24,8 +24,8 @@ type Alerta = {
   id: number;
   equipamentoCodigo: string;
   equipamentoDescricao: string;
-  parametro: string; // NOVO: Trazido da API
-  valorLido: number; // NOVO: Trazido da API
+  parametro: string;
+  valorLido: number;
   descricao: string;
   dataAlerta: string;
   classificacao?: string;
@@ -128,7 +128,6 @@ export default function HistoricoAlertas() {
     return "Todos";
   };
 
-  // MOTOR HIERÁRQUICO
   const getIdsPermitidosLoc = (idRaiz: number): number[] => {
     const ids = [idRaiz];
     const buscarFilhos = (idPai: number) => {
@@ -158,11 +157,10 @@ export default function HistoricoAlertas() {
     return matchData && matchClassificacao && matchLoc && matchFam && matchEq;
   });
 
-  // NOVO: Agrupamento Duplo (Equipamento + Parâmetro)
   const alertasAgrupados = Object.values(
     alertasFiltrados.reduce((acc: any, alerta) => {
       const nomeParametro = alerta.parametro || "Geral";
-      const key = `${alerta.equipamentoCodigo}_${nomeParametro}`; // Chave única
+      const key = `${alerta.equipamentoCodigo}_${nomeParametro}`;
       
       if (!acc[key]) {
         acc[key] = {
@@ -338,18 +336,15 @@ export default function HistoricoAlertas() {
             renderItem={({ item }: any) => {
               const isExpanded = expandidos.includes(item.chaveUnica);
 
-              // PREPARAÇÃO DOS DADOS DO GRÁFICO
               let labelsGrafico: string[] = [];
               let valoresGrafico: number[] = [];
               
               if (isExpanded) {
-                // Ordena do mais antigo para o mais novo para a linha seguir a ordem correta do tempo
                 const dadosOrdenados = [...item.alertas].sort((a, b) => new Date(a.dataAlerta).getTime() - new Date(b.dataAlerta).getTime());
                 
                 labelsGrafico = dadosOrdenados.map(a => new Date(a.dataAlerta).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
                 valoresGrafico = dadosOrdenados.map(a => Number(a.valorLido) || 0);
                 
-                // Reduz as labels para não sobrepor se houver muitos dados
                 if (labelsGrafico.length > 5) {
                   labelsGrafico = labelsGrafico.map((lbl, index) => 
                     (index === 0 || index === labelsGrafico.length - 1 || index === Math.floor(labelsGrafico.length / 2)) ? lbl : ""
@@ -362,7 +357,6 @@ export default function HistoricoAlertas() {
                   <Pressable style={styles.cardHeader} onPress={() => toggleExpandir(item.chaveUnica)}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.equipment}>{item.codigo}</Text>
-                      {/* NOVO: Mostra o Parâmetro em Destaque */}
                       <Text style={styles.parametroTitle}>Parâmetro: <Text style={{color: '#208AEF'}}>{item.parametro}</Text></Text>
                     </View>
                     <View style={styles.badgeArea}>
@@ -374,38 +368,38 @@ export default function HistoricoAlertas() {
                   {isExpanded && (
                     <View style={styles.expandedContent}>
                       
-                      {/* NOVO: GRÁFICO DE TENDÊNCIA */}
                       {valoresGrafico.length > 0 && (
                         <View style={styles.graficoContainer}>
                           <Text style={styles.graficoTitulo}>Evolução ({item.parametro})</Text>
-                          <LineChart
-                            data={{
-                              labels: labelsGrafico.length > 0 ? labelsGrafico : ["-"],
-                              datasets: [{ data: valoresGrafico.length > 0 ? valoresGrafico : [0] }]
-                            }}
-                            width={screenWidth - 80}
-                            height={180}
-                            yAxisLabel=""
-                            yAxisSuffix=""
-                            chartConfig={{
-                              backgroundColor: "#fff",
-                              backgroundGradientFrom: "#f8fafc",
-                              backgroundGradientTo: "#f8fafc",
-                              decimalPlaces: 1,
-                              color: (opacity = 1) => `rgba(32, 138, 239, ${opacity})`,
-                              labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
-                              style: { borderRadius: 8 },
-                              propsForDots: { r: "4", strokeWidth: "2", stroke: "#208AEF" }
-                            }}
-                            bezier
-                            style={{ marginVertical: 8, borderRadius: 8 }}
-                          />
+                          <View pointerEvents="none">
+                            <LineChart
+                              data={{
+                                labels: labelsGrafico.length > 0 ? labelsGrafico : ["-"],
+                                datasets: [{ data: valoresGrafico.length > 0 ? valoresGrafico : [0] }]
+                              }}
+                              width={screenWidth - 80}
+                              height={180}
+                              yAxisLabel=""
+                              yAxisSuffix=""
+                              chartConfig={{
+                                backgroundColor: "#fff",
+                                backgroundGradientFrom: "#f8fafc",
+                                backgroundGradientTo: "#f8fafc",
+                                decimalPlaces: 1,
+                                color: (opacity = 1) => `rgba(32, 138, 239, ${opacity})`,
+                                labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
+                                style: { borderRadius: 8 },
+                                propsForDots: { r: "4", strokeWidth: "2", stroke: "#208AEF" }
+                              }}
+                              bezier
+                              style={{ marginVertical: 8, borderRadius: 8 }}
+                            />
+                          </View>
                         </View>
                       )}
 
                       <Text style={styles.historicoLabel}>Histórico de Leituras:</Text>
                       
-                      {/* Lista de dados ordenada do mais recente para o mais antigo */}
                       {item.alertas.sort((a: any, b: any) => new Date(b.dataAlerta).getTime() - new Date(a.dataAlerta).getTime()).map((al: any) => (
                         <View key={al.id} style={styles.subCard}>
                           <View style={{ flex: 1 }}>
