@@ -30,10 +30,8 @@ export default function CadastroParametros() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
-  // NOVO: Estado para controlar o Acordeão
   const [formVisible, setFormVisible] = useState(false);
 
-  // Estados do Formulário
   const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null);
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -73,7 +71,7 @@ export default function CadastroParametros() {
     setIdUnidade(param.idUnidade);
     setTipoDado(param.tipoDado || 'NUMERICO');
     setIdEmEdicao(param.id!);
-    setFormVisible(true); // Expande o formulário ao editar
+    setFormVisible(true);
   };
 
   const cancelarEdicao = () => {
@@ -82,7 +80,7 @@ export default function CadastroParametros() {
     if (unidades.length > 0) setIdUnidade(unidades[0].id);
     setTipoDado('NUMERICO');
     setIdEmEdicao(null);
-    setFormVisible(false); // Recolhe o formulário ao cancelar
+    setFormVisible(false);
   };
 
   const salvarParametro = async () => {
@@ -99,8 +97,9 @@ export default function CadastroParametros() {
       const parametroExistente = parametros.find(p => p.codigo === codigoFormatado);
       const idParaSalvar = idEmEdicao || (parametroExistente ? parametroExistente.id : null);
 
+      // CORREÇÃO: Força o id para 0 quando for nulo, para evitar erros de validação no C#
       const payload = {
-        id: idParaSalvar,
+        id: idParaSalvar || 0,
         codigo: codigoFormatado,
         descricao,
         idUnidade: Number(idUnidade),
@@ -119,14 +118,21 @@ export default function CadastroParametros() {
         Alert.alert('Sucesso', 'Parâmetro salvo com sucesso!');
       }
       
-      cancelarEdicao(); // Limpa e fecha o formulário
+      cancelarEdicao();
       
       const resParam = await axios.get<Parametro[]>(API_PARAMETROS, { headers: { Authorization: `Bearer ${token}` } });
       setParametros(resParam.data);
 
     } catch (error: any) {
-      const erroBackend = error.response?.data?.title || error.response?.data || error.message;
-      Alert.alert('Erro', `Ocorreu um erro ao salvar.\nMotivo: ${typeof erroBackend === 'string' ? erroBackend : JSON.stringify(erroBackend)}`);
+      // CORREÇÃO: Captura e exibição detalhada de erros de validação
+      let mensagemErro = "Erro desconhecido";
+      if (error.response?.data?.errors) {
+        const erros = error.response.data.errors;
+        mensagemErro = Object.keys(erros).map(key => erros[key].join('\n')).join('\n');
+      } else {
+        mensagemErro = error.response?.data?.title || error.response?.data || error.message;
+      }
+      Alert.alert('Erro na API', `Não foi possível salvar.\nMotivo: ${mensagemErro}`);
     } finally {
       setSalvando(false);
     }
@@ -169,7 +175,6 @@ export default function CadastroParametros() {
       </View>
 
       <View style={styles.formContainer}>
-        {/* CABEÇALHO DO ACORDEÃO */}
         <Pressable 
           style={styles.accordionHeader} 
           onPress={() => setFormVisible(!formVisible)}
@@ -182,7 +187,6 @@ export default function CadastroParametros() {
           </Text>
         </Pressable>
         
-        {/* CONTEÚDO DO FORMULÁRIO */}
         {formVisible && (
           <View style={styles.formBody}>
             <View style={styles.row}>
@@ -257,7 +261,6 @@ export default function CadastroParametros() {
         )}
       </View>
 
-      {/* LISTA DE PARÂMETROS */}
       {loading ? (
         <ActivityIndicator size="large" color="#16a34a" style={{ marginTop: 40 }} />
       ) : (
@@ -293,7 +296,6 @@ const styles = StyleSheet.create({
   voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
   voltarText: { color: '#fff', fontWeight: 'bold' },
   
-  // Estilos do Acordeão
   formContainer: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2, overflow: 'hidden' },
   accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f8fafc' },
   formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
@@ -317,11 +319,9 @@ const styles = StyleSheet.create({
   pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#94a3b8', borderRadius: 6, marginBottom: 10, height: 60, justifyContent: 'center' },
   pickerCompact: { height: 60 },
   
-  // GRID
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   colHalf: { width: '48%' },
 
-  // BOTÕES
   botoesRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
   saveButton: { flex: 1, backgroundColor: '#16a34a', padding: 12, borderRadius: 6, alignItems: 'center' },
   disabledButton: { backgroundColor: '#94a3b8' },
@@ -329,7 +329,6 @@ const styles = StyleSheet.create({
   cancelButton: { flex: 1, backgroundColor: '#ef4444', padding: 12, borderRadius: 6, alignItems: 'center' },
   cancelButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   
-  // LISTA
   card: { flexDirection: 'row', backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', elevation: 1 },
   cardCodigo: { fontSize: 15, fontWeight: 'bold', color: '#1e293b' },
   cardDescricao: { fontSize: 13, color: '#475569', marginTop: 2, marginBottom: 6 },

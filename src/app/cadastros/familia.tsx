@@ -7,8 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Familia = {
   id?: number;
-  code?: string; // Algumas APIs devolvem 'code'
-  codigo?: string; // Outras devolvem 'codigo'
+  code?: string;
+  codigo?: string;
   descricao: string;
 };
 
@@ -20,7 +20,6 @@ export default function CadastroFamilia() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
-  // NOVO: Estado para controlar a visibilidade do formulário (Acordeão)
   const [formVisible, setFormVisible] = useState(false);
 
   const [codigo, setCodigo] = useState('');
@@ -46,19 +45,18 @@ export default function CadastroFamilia() {
   };
 
   const prepararEdicao = (familia: Familia) => {
-    // Tenta pegar 'codigo' ou 'code', dependendo de como a API C# devolve
     const codigoDaFamilia = familia.codigo || familia.code || '';
     setCodigo(codigoDaFamilia);
     setDescricao(familia.descricao);
     setIdEmEdicao(familia.id!);
-    setFormVisible(true); // Expande o formulário ao editar
+    setFormVisible(true);
   };
 
   const cancelarEdicao = () => {
     setCodigo('');
     setDescricao('');
     setIdEmEdicao(null);
-    setFormVisible(false); // Recolhe o formulário ao cancelar
+    setFormVisible(false);
   };
 
   const salvarFamilia = async () => {
@@ -72,41 +70,44 @@ export default function CadastroFamilia() {
       const token = await SecureStore.getItemAsync('jwtToken');
       const codigoFormatado = codigo.toUpperCase().trim();
 
-      // Verifica se o código digitado já existe na lista
       const familiaExistente = familias.find(f => (f.codigo || f.code)?.toUpperCase() === codigoFormatado);
-
-      // Define se vai atualizar ou inserir
       const idParaSalvar = idEmEdicao || (familiaExistente ? familiaExistente.id : null);
 
-      // Payload com 'code' (conforme o seu código original) e 'codigo' para garantir compatibilidade
+      // CORREÇÃO AQUI: idParaSalvar || 0
       const payload = { 
-        id: idParaSalvar, 
+        id: idParaSalvar || 0,
         code: codigoFormatado, 
         codigo: codigoFormatado, 
         descricao: descricao 
       };
 
       if (idParaSalvar) {
-        // Atualiza a família existente (PUT)
         await axios.put(`${API_URL}/${idParaSalvar}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         Alert.alert('Sucesso', 'Família atualizada com sucesso!');
       } else {
-        // Cria uma nova família (POST)
         await axios.post(API_URL, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         Alert.alert('Sucesso', 'Família salva com sucesso!');
       }
 
-      cancelarEdicao(); // Limpa os campos e fecha o acordeão
+      cancelarEdicao();
       carregarFamilias();
     } catch (error: any) {
-      const erroBackend = error.response?.data?.title || error.response?.data || error.message;
+      // CORREÇÃO AQUI: Tratamento detalhado de erros do C#
+      let mensagemErro = "Erro desconhecido";
+      if (error.response?.data?.errors) {
+        const erros = error.response.data.errors;
+        mensagemErro = Object.keys(erros).map(key => erros[key].join('\n')).join('\n');
+      } else {
+        mensagemErro = error.response?.data?.title || error.response?.data || error.message;
+      }
+
       Alert.alert(
         'Erro na API', 
-        `Não foi possível salvar.\nMotivo: ${typeof erroBackend === 'string' ? erroBackend : JSON.stringify(erroBackend)}`
+        `Não foi possível salvar.\nMotivo: ${mensagemErro}`
       );
     } finally {
       setSalvando(false);
@@ -145,7 +146,6 @@ export default function CadastroFamilia() {
       </View>
 
       <View style={styles.formContainer}>
-        {/* CABEÇALHO DO ACORDEÃO */}
         <Pressable 
           style={styles.accordionHeader} 
           onPress={() => setFormVisible(!formVisible)}
@@ -158,7 +158,6 @@ export default function CadastroFamilia() {
           </Text>
         </Pressable>
 
-        {/* CONTEÚDO DO FORMULÁRIO */}
         {formVisible && (
           <View style={styles.formBody}>
             <Text style={styles.label}>Código</Text>
@@ -234,7 +233,6 @@ const styles = StyleSheet.create({
   voltarButton: { backgroundColor: '#64748b', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
   voltarText: { color: '#fff', fontWeight: 'bold' },
   
-  // Estilos do Acordeão
   formContainer: { backgroundColor: '#fff', borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2, overflow: 'hidden' },
   accordionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f8fafc' },
   formTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b' },
