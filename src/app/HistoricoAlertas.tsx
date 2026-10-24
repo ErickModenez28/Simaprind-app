@@ -44,6 +44,17 @@ const getCoresClassificacao = (classificacao?: string) => {
   }
 };
 
+// NOVO: Função para obter a prioridade baseada na classificação ou descrição
+function obterPrioridade(classificacao?: string, descricao?: string) {
+  const texto = (classificacao || descricao || "").toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+  
+  if (texto.includes('CRITICO')) return '1'; 
+  if (texto.includes('ALERTA')) return '2';  
+  if (texto.includes('ATENCAO')) return '3'; 
+  
+  return '-'; 
+}
+
 export default function HistoricoAlertas() {
   const router = useRouter();
   
@@ -400,25 +411,29 @@ export default function HistoricoAlertas() {
 
                       <Text style={styles.historicoLabel}>Histórico de Leituras:</Text>
                       
-                      {item.alertas.sort((a: any, b: any) => new Date(b.dataAlerta).getTime() - new Date(a.dataAlerta).getTime()).map((al: any) => (
-                        <View key={al.id} style={styles.subCard}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.subDesc}>
-                              Valor: <Text style={{fontWeight: 'bold', color: '#1e293b'}}>{al.valorLido}</Text>
-                            </Text>
-                            <Text style={styles.subDate}>
-                              {new Date(al.dataAlerta).toLocaleString("pt-BR")}
-                            </Text>
-                          </View>
-                          {al.classificacao && (
-                            <View style={[styles.classBadge, { backgroundColor: getCoresClassificacao(al.classificacao).bg }]}>
-                              <Text style={[styles.classBadgeText, { color: getCoresClassificacao(al.classificacao).text }]}>
-                                {al.classificacao}
+                      {item.alertas.sort((a: any, b: any) => new Date(b.dataAlerta).getTime() - new Date(a.dataAlerta).getTime()).map((al: any) => {
+                        const prioridade = obterPrioridade(al.classificacao, al.descricao);
+                        
+                        return (
+                          <View key={al.id} style={styles.subCard}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subDesc}>
+                                Valor: <Text style={{fontWeight: 'bold', color: '#1e293b'}}>{al.valorLido}</Text>
+                              </Text>
+                              <Text style={styles.subDate}>
+                                {new Date(al.dataAlerta).toLocaleString("pt-BR")}
                               </Text>
                             </View>
-                          )}
-                        </View>
-                      ))}
+                            {al.classificacao && (
+                              <View style={[styles.classBadge, { backgroundColor: getCoresClassificacao(al.classificacao).bg }]}>
+                                <Text style={[styles.classBadgeText, { color: getCoresClassificacao(al.classificacao).text }]}>
+                                  {prioridade !== '-' ? `[P${prioridade}] ${al.classificacao}` : al.classificacao}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
@@ -502,7 +517,7 @@ const styles = StyleSheet.create({
   subDesc: { fontSize: 14, color: "#64748b" },
   subDate: { fontSize: 12, color: "#64748b", marginTop: 4, fontWeight: "bold" },
   classBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
-  classBadgeText: { fontSize: 10, fontWeight: "bold" },
+  classBadgeText: { fontSize: 11, fontWeight: "bold" },
   empty: { color: "#888", marginTop: 40, textAlign: "center" },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },

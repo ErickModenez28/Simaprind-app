@@ -9,7 +9,7 @@ type Alerta = {
   id: number;
   equipamentoCodigo: string;
   equipamentoDescricao: string;
-  parametro: string; // NOVO: Trazido da API para agrupar
+  parametro: string;
   descricao: string;
   statusAlerta: string;
   dataAlerta: string;
@@ -27,6 +27,17 @@ function obterCorGravidade(descricao: string) {
   return '#333333'; 
 }
 
+// NOVO: Função para Acessibilidade e Priorização Numérica
+function obterPrioridade(descricao: string) {
+  const descLimpa = descricao?.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "") || "";
+  
+  if (descLimpa.includes('CRITICO')) return '1'; 
+  if (descLimpa.includes('ALERTA')) return '2';  
+  if (descLimpa.includes('ATENCAO')) return '3'; 
+  
+  return '-'; 
+}
+
 function obterCorWorkflow(status: string) {
   const statusLimpo = status?.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "") || "";
   
@@ -41,7 +52,6 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   
   const [expandidos, setExpandidos] = useState<string[]>([]);
-  // NOVO: Agora armazena a chave única (Equipamento + Parametro)
   const [chavesSelecionadas, setChavesSelecionadas] = useState<string[]>([]);
 
   const buscarAlertas = async () => {
@@ -66,7 +76,6 @@ export default function DashboardScreen() {
     return () => clearInterval(intervalo);
   }, [router]);
 
-  // NOVO: Agrupamento duplo (Equipamento x Parâmetro)
   const alertasAgrupados = Object.values(alertas.reduce((acc: any, alerta) => {
     const nomeParametro = alerta.parametro || "Geral";
     const key = `${alerta.equipamentoCodigo}_${nomeParametro}`;
@@ -97,14 +106,12 @@ export default function DashboardScreen() {
     if (chavesSelecionadas.length === 0) return;
     setLoading(true);
     
-    // Mapeia os IDs dos alertas que pertencem às chaves (Equipamento+Parametro) selecionadas
     const idsParaAtualizar = alertas
       .filter(a => chavesSelecionadas.includes(`${a.equipamentoCodigo}_${a.parametro || "Geral"}`))
       .map(a => a.id);
 
     try {
       const token = await SecureStore.getItemAsync('jwtToken');
-      // O backend extrairá o usuário diretamente do JWT (Bearer Token)
       await axios.put(`${API_URL}/status`, 
         { ids: idsParaAtualizar, novoStatus: novoStatus },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -167,6 +174,7 @@ export default function DashboardScreen() {
             const isSelected = chavesSelecionadas.includes(item.chaveUnica);
             
             const corGravidade = obterCorGravidade(item.ultimoAlerta.descricao);
+            const prioridade = obterPrioridade(item.ultimoAlerta.descricao);
             const corWorkflow = obterCorWorkflow(item.ultimoAlerta.statusAlerta);
 
             return (
@@ -177,8 +185,13 @@ export default function DashboardScreen() {
                       {isSelected && <Text style={styles.checkMark}>✓</Text>}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.equipment}>{item.codigo}</Text>
-                      {/* NOVO: Mostra o Parâmetro em Destaque no Dashboard */}
+                      {/* NOVO: Tag de Prioridade ao lado do código do equipamento */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.equipment}>{item.codigo}</Text>
+                        <View style={[styles.badgePrioridade, { backgroundColor: corGravidade }]}>
+                          <Text style={styles.badgePrioridadeText}>P{prioridade}</Text>
+                        </View>
+                      </View>
                       <Text style={styles.parametroTitle}>Parâmetro: <Text style={{color: '#208AEF'}}>{item.parametro}</Text></Text>
                     </View>
                   </Pressable>
@@ -196,11 +209,11 @@ export default function DashboardScreen() {
                 {isExpanded && (
                   <View style={styles.expandedContent}>
                     <Text style={styles.expandedTitle}>Histórico de Leituras ({item.alertas.length}):</Text>
-                    {/* Ordena do mais recente para o mais antigo */}
                     {item.alertas.sort((a: any, b: any) => new Date(b.dataAlerta).getTime() - new Date(a.dataAlerta).getTime()).map((al: any) => (
                       <View key={al.id} style={styles.subCard}>
+                        {/* NOVO: Tag [P1] no texto para reforçar acessibilidade */}
                         <Text style={[styles.subDesc, { color: obterCorGravidade(al.descricao), fontWeight: 'bold' }]}>
-                          {al.descricao}
+                          [P{obterPrioridade(al.descricao)}] {al.descricao}
                         </Text>
                         <Text style={styles.subDate}>{new Date(al.dataAlerta).toLocaleString('pt-BR')}</Text>
                         <Text style={[styles.subStatus, { color: obterCorWorkflow(al.statusAlerta) }]}>
@@ -242,7 +255,13 @@ const styles = StyleSheet.create({
   checkbox: { width: 24, height: 24, borderWidth: 2, borderColor: '#cbd5e1', borderRadius: 4, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkboxSelected: { backgroundColor: '#208AEF', borderColor: '#208AEF' },
   checkMark: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginTop: -2 },
+  
   equipment: { color: '#1e293b', fontSize: 16, fontWeight: 'bold' },
+  
+  // NOVO: Estilos da tag de prioridade
+  badgePrioridade: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  badgePrioridadeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+
   parametroTitle: { color: "#475569", fontSize: 13, marginTop: 2, fontWeight: 'bold' },
   expandArea: { flexDirection: 'row', alignItems: 'center', paddingLeft: 10 },
   statusBadge: { paddingHorizontal: 4, paddingVertical: 4, marginRight: 8 },
